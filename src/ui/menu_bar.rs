@@ -116,9 +116,7 @@ pub fn render_menu_bar(
                 });
 
                 ui.menu_button("Help", |ui| {
-                    ui.label(
-                        egui::RichText::new("⚡ WGPU Professional Engine Studio").strong(),
-                    );
+                    ui.label(egui::RichText::new("⚡ WGPU Professional Engine Studio").strong());
                     ui.label("Navigation Controls:");
                     ui.label("• Left Click + Drag: Orbit Camera");
                     ui.label("• Mouse Scroll: Zoom In / Out");
