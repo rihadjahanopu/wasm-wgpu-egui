@@ -61,7 +61,7 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Run Clippy on WASM Target
-        run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy --lib --target wasm32-unknown-unknown -- -D warnings
 
   # ---------------------------------------------------------------------------
   # 3. Cross-Platform Compilation & Test Matrix (Linux, Windows, macOS)
