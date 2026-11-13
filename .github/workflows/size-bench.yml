@@ -1,0 +1,56 @@
+name: 📊 Binary & WASM Size Analysis
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-sizes:
+    name: 📏 Measure Artifact Sizes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Build Dependencies & Trunk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxinerama-dev libwayland-dev libxkbcommon-dev libvulkan-dev
+          cargo install trunk --locked
+
+      - name: Build Native Release Binary
+        run: cargo build --release
+
+      - name: Build Web WASM Release Distribution
+        run: trunk build --release
+
+      - name: Generate Size Summary Table
+        run: |
+          NATIVE_SIZE=$(ls -lh target/release/wasm-wgpu-egui | awk '{print $5}')
+          WASM_SIZE=$(ls -lh dist/*.wasm | awk '{print $5}')
+          JS_SIZE=$(ls -lh dist/*.js | awk '{print $5}')
+          HTML_SIZE=$(ls -lh dist/index.html | awk '{print $5}')
+
+          echo "### 📊 Production Artifact Sizes" >> $GITHUB_STEP_SUMMARY
+          echo "| Artifact | Target | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐧 Linux Native Binary | \`x86_64-unknown-linux-gnu\` | **$NATIVE_SIZE** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 WebAssembly Bundle | \`wasm32-unknown-unknown\` (\`-Oz\` SIMD) | **$WASM_SIZE** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📜 JavaScript Glue | \`wasm-bindgen\` | **$JS_SIZE** |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📄 HTML Shell | \`index.html\` | **$HTML_SIZE** |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> ⚡ Built with Fat LTO and SIMD128 optimizations for maximum studio performance." >> $GITHUB_STEP_SUMMARY
