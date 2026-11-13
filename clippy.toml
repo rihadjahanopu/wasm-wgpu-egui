@@ -1,0 +1,22 @@
+# Professional Clippy Linting Configuration
+cognitive-complexity-threshold = 30
+cyclomatic-complexity-threshold = 30
+too-many-arguments-threshold = 8
+type-complexity-threshold = 250
+single-char-binding-names-threshold = 4
+enum-variant-name-threshold = 3
+
+# Recognized identifiers for documentation & linting
+doc-valid-idents = [
+    "WebGPU",
+    "WASM",
+    "WGSL",
+    "wgpu",
+    "egui",
+    "winit",
+    "SIMD",
+    "VRAM",
+    "MSAA",
+    "LTO",
+    "glam",
+]
