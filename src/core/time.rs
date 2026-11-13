@@ -10,6 +10,12 @@ pub struct TimeTracker {
     history_capacity: usize,
 }
 
+impl Default for TimeTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TimeTracker {
     pub fn new() -> Self {
         let now = Self::get_timestamp_secs();
