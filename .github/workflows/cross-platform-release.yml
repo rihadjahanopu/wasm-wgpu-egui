@@ -1,0 +1,433 @@
+name: 🚀 Cross-Platform Desktop & Web Matrix Release
+
+on:
+  # Nightly dry run: builds every platform (Linux, Windows, macOS, Web, ARM64) to catch breakage early
+  schedule:
+    - cron: "0 2 * * *"
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag override (e.g. v0.2.0, or leave empty for git ref)"
+        type: string
+        default: ""
+      dry_run:
+        description: "Test run only (build all artifacts without publishing GitHub release)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Supply-Chain & Cargo Integrity Pre-Flight Check
+  # ---------------------------------------------------------------------------
+  security-check:
+    name: 🛡️ Supply-Chain & Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner Security
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify Cargo.lock & Prevent Malicious Overrides
+        run: |
+          set -euo pipefail
+          test -f Cargo.lock || { echo "❌ Cargo.lock is missing from repository!"; exit 1; }
+          cargo metadata --locked --format-version 1 > /dev/null
+          python3 - <<'PY'
+          import os, sys, tomllib
+          for path in (".cargo/config", ".cargo/config.toml"):
+              if not os.path.exists(path):
+                  continue
+              config = tomllib.load(open(path, "rb"))
+              replaced = [name for name, source in config.get("source", {}).items()
+                          if isinstance(source, dict) and "replace-with" in source]
+              if replaced or "patch" in config or "paths" in config:
+                  print(f"❌ Security alert: {path} contains unauthorized source/patch override")
+                  sys.exit(1)
+          print("✅ All Cargo manifests and lockfiles passed supply-chain verification.")
+          PY
+
+  # ---------------------------------------------------------------------------
+  # 2. Linux Matrix (.tar.gz, .deb, .rpm for x86_64 and ARM64)
+  # ---------------------------------------------------------------------------
+  linux-matrix:
+    name: Linux (${{ matrix.arch }})
+    needs: [security-check]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            target: x86_64-unknown-linux-gnu
+            deb_arch: amd64
+            rpm_arch: x86_64
+            cross: false
+          - arch: arm64
+            target: aarch64-unknown-linux-gnu
+            deb_arch: arm64
+            rpm_arch: aarch64
+            cross: true
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Build Dependencies & Packaging Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxinerama-dev libwayland-dev libxkbcommon-dev libvulkan-dev rpm
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
+
+      - name: Build Native Release Binary (Fat LTO)
+        run: |
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          fi
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Package Standalone .tar.gz
+        run: |
+          mkdir -p pkg-tar
+          cp target/${{ matrix.target }}/release/wasm-wgpu-egui pkg-tar/wgpu-studio
+          tar -czvf wgpu-studio-linux-${{ matrix.arch }}.tar.gz -C pkg-tar .
+
+      - name: Package Debian / Ubuntu (.deb)
+        run: |
+          mkdir -p deb-pkg/DEBIAN deb-pkg/usr/bin deb-pkg/usr/share/applications
+          cp target/${{ matrix.target }}/release/wasm-wgpu-egui deb-pkg/usr/bin/wgpu-studio
+          cat << 'EOF' > deb-pkg/DEBIAN/control
+          Package: wgpu-studio
+          Version: 0.1.0
+          Section: graphics
+          Priority: optional
+          Architecture: ${{ matrix.deb_arch }}
+          Maintainer: Rihad Jahan Opu <https://rihadjahanopu.com>
+          Description: WGPU Professional 3D Engine Studio
+           High-performance cross-platform 3D WebGPU and egui studio shell.
+           Developed by Rihad Jahan Opu (https://rihadjahanopu.com).
+          EOF
+          cat << 'EOF' > deb-pkg/usr/share/applications/wgpu-studio.desktop
+          [Desktop Entry]
+          Name=WGPU Engine Studio
+          Comment=Professional 3D WebGPU Engine Studio by Rihad Jahan Opu
+          Exec=wgpu-studio
+          Icon=applications-graphics
+          Terminal=false
+          Type=Application
+          Categories=Graphics;3DGraphics;Development;
+          EOF
+          dpkg-deb --build deb-pkg wgpu-studio_0.1.0_${{ matrix.deb_arch }}.deb
+
+      - name: Package Fedora / RHEL (.rpm)
+        if: matrix.arch == 'x86_64'
+        run: |
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          mkdir -p ~/rpmbuild/BUILD/wgpu-studio-0.1.0/usr/bin
+          mkdir -p ~/rpmbuild/BUILD/wgpu-studio-0.1.0/usr/share/applications
+          cp target/${{ matrix.target }}/release/wasm-wgpu-egui ~/rpmbuild/BUILD/wgpu-studio-0.1.0/usr/bin/wgpu-studio
+          cat << 'EOF' > ~/rpmbuild/BUILD/wgpu-studio-0.1.0/usr/share/applications/wgpu-studio.desktop
+          [Desktop Entry]
+          Name=WGPU Engine Studio
+          Comment=Professional 3D WebGPU Engine Studio by Rihad Jahan Opu
+          Exec=wgpu-studio
+          Icon=applications-graphics
+          Terminal=false
+          Type=Application
+          Categories=Graphics;3DGraphics;Development;
+          EOF
+          cat << 'EOF' > ~/rpmbuild/SPECS/wgpu-studio.spec
+          Name:           wgpu-studio
+          Version:        0.1.0
+          Release:        1%{?dist}
+          Summary:        Professional 3D WebGPU Engine Studio by Rihad Jahan Opu
+          License:        MIT
+          URL:            https://rihadjahanopu.com
+
+          %description
+          High-performance cross-platform 3D WebGPU and egui studio shell.
+          Developed by Rihad Jahan Opu (https://rihadjahanopu.com).
+
+          %install
+          mkdir -p %{buildroot}/usr/bin
+          mkdir -p %{buildroot}/usr/share/applications
+          cp %{_builddir}/wgpu-studio-0.1.0/usr/bin/wgpu-studio %{buildroot}/usr/bin/
+          cp %{_builddir}/wgpu-studio-0.1.0/usr/share/applications/wgpu-studio.desktop %{buildroot}/usr/share/applications/
+
+          %files
+          /usr/bin/wgpu-studio
+          /usr/share/applications/wgpu-studio.desktop
+          EOF
+          rpmbuild -bb ~/rpmbuild/SPECS/wgpu-studio.spec
+          cp ~/rpmbuild/RPMS/x86_64/*.rpm wgpu-studio-0.1.0-1.x86_64.rpm
+
+      - name: Package Universal Linux (.AppImage, .zsync & .rsync)
+        if: matrix.arch == 'x86_64'
+        run: |
+          mkdir -p tools AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          curl -sL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o tools/appimagetool
+          chmod +x tools/appimagetool
+          (cd tools && ./appimagetool --appimage-extract > /dev/null)
+          
+          cp target/${{ matrix.target }}/release/wasm-wgpu-egui AppDir/usr/bin/wgpu-studio
+          cp assets/wgpu-studio.png AppDir/wgpu-studio.png
+          cp assets/wgpu-studio.png AppDir/.DirIcon
+          cp assets/wgpu-studio.png AppDir/usr/share/icons/hicolor/256x256/apps/wgpu-studio.png
+          
+          cat << 'EOF' > AppDir/wgpu-studio.desktop
+          [Desktop Entry]
+          Name=WGPU Engine Studio
+          Comment=⚡ Professional 3D WebGPU Engine Studio by Rihad Jahan Opu
+          Exec=wgpu-studio
+          Icon=wgpu-studio
+          Terminal=false
+          Type=Application
+          Categories=Graphics;Development;
+          EOF
+          cp AppDir/wgpu-studio.desktop AppDir/usr/share/applications/
+          
+          cat << 'EOF' > AppDir/AppRun
+          #!/bin/sh
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${PATH}"
+          exec "${HERE}/usr/bin/wgpu-studio" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+          
+          ARCH=x86_64 ./tools/squashfs-root/AppRun -u "gh-releases-zsync|rihad|wgpu-studio|latest|wgpu-studio-x86_64.AppImage.zsync" AppDir wgpu-studio-x86_64.AppImage
+          if [ -f wgpu-studio-x86_64.AppImage.zsync ]; then
+            cp wgpu-studio-x86_64.AppImage.zsync wgpu-studio-x86_64.AppImage.rsync
+          fi
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}-artifacts
+          path: |
+            wgpu-studio-linux-${{ matrix.arch }}.tar.gz
+            wgpu-studio_0.1.0_${{ matrix.deb_arch }}.deb
+            wgpu-studio-0.1.0-1.x86_64.rpm
+            wgpu-studio-x86_64.AppImage*
+
+  # ---------------------------------------------------------------------------
+  # 3. macOS Universal Build (.dmg & .zip for Apple Silicon + Intel)
+  # ---------------------------------------------------------------------------
+  macos-universal:
+    name: "macOS (Universal 2: Apple Silicon + Intel)"
+    needs: [security-check]
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchains
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Apple Silicon (ARM64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build Intel (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Combine Universal 2 Binary with lipo
+        run: |
+          mkdir -p universal_bin
+          lipo -create -output universal_bin/wgpu-studio \
+            target/aarch64-apple-darwin/release/wasm-wgpu-egui \
+            target/x86_64-apple-darwin/release/wasm-wgpu-egui
+          file universal_bin/wgpu-studio
+
+      - name: Assemble macOS .app Bundle
+        run: |
+          mkdir -p "WGPU Studio.app/Contents/MacOS"
+          mkdir -p "WGPU Studio.app/Contents/Resources"
+          cp universal_bin/wgpu-studio "WGPU Studio.app/Contents/MacOS/wgpu-studio"
+          chmod +x "WGPU Studio.app/Contents/MacOS/wgpu-studio"
+          cat << 'EOF' > "WGPU Studio.app/Contents/Info.plist"
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>wgpu-studio</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.rihadjahanopu.wgpu-studio</string>
+              <key>CFBundleName</key>
+              <string>WGPU Studio</string>
+              <key>CFBundleDisplayName</key>
+              <string>WGPU Studio</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>0.1.0</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>11.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Create Drag-and-Drop .dmg Installer
+        run: |
+          mkdir -p dmg_staging
+          cp -R "WGPU Studio.app" dmg_staging/
+          ln -s /Applications dmg_staging/Applications
+          hdiutil create -volname "WGPU Studio" -srcfolder dmg_staging -ov -format UDZO wgpu-studio-macos-universal.dmg
+          zip -r wgpu-studio-macos-universal.zip "WGPU Studio.app"
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            wgpu-studio-macos-universal.dmg
+            wgpu-studio-macos-universal.zip
+
+  # ---------------------------------------------------------------------------
+  # 4. Windows Matrix (x86_64 and ARM64 Snapdragon)
+  # ---------------------------------------------------------------------------
+  windows-matrix:
+    name: Windows (${{ matrix.arch }})
+    needs: [security-check]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Windows Release Binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package Windows .zip
+        shell: pwsh
+        run: |
+          mkdir package
+          cp target/${{ matrix.target }}/release/wasm-wgpu-egui.exe package/wgpu-studio.exe
+          Compress-Archive -Path package/* -DestinationPath wgpu-studio-windows-${{ matrix.arch }}.zip
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}-artifacts
+          path: wgpu-studio-windows-${{ matrix.arch }}.zip
+
+  # ---------------------------------------------------------------------------
+  # 5. WebAssembly (WASM) Web Production Build
+  # ---------------------------------------------------------------------------
+  web-wasm:
+    name: Web (WASM + WebGPU)
+    needs: [security-check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Trunk
+        run: cargo install trunk --locked
+
+      - name: Build Web Production Distribution (SIMD128 + wasm-opt)
+        run: |
+          trunk build --release
+          zip -r wgpu-studio-web-wasm.zip dist/
+
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-wasm-artifacts
+          path: wgpu-studio-web-wasm.zip
+
+  # ---------------------------------------------------------------------------
+  # 6. Publish Comprehensive GitHub Release
+  # ---------------------------------------------------------------------------
+  release:
+    name: 📢 Publish GitHub Release
+    needs: [linux-matrix, macos-universal, windows-matrix, web-wasm]
+    if: |
+      github.event_name != 'schedule' &&
+      !inputs.dry_run &&
+      (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Determine Release Tag
+        id: release_tag
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          files: |
+            linux-*-artifacts/*.tar.gz
+            linux-*-artifacts/*.deb
+            linux-*-artifacts/*.rpm
+            linux-*-artifacts/*.AppImage*
+            macos-artifacts/*.dmg
+            macos-artifacts/*.zip
+            windows-*-artifacts/*.zip
+            web-wasm-artifacts/*.zip
+          generate_release_notes: true
+          name: "⚡ WGPU Studio ${{ steps.release_tag.outputs.tag }} | by Rihad Jahan Opu"
