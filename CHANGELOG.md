@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] — 2026-11-13
+
+### 🐛 Fixed
+- `clippy.toml`: removed duplicate `cyclomatic-complexity-threshold` key (conflict with `cognitive-complexity-threshold`)
+- `core/time.rs`: added `Default` impl for `TimeTracker` as required by clippy
+- `app.rs`: collapsed nested `if` / `if let` into single condition
+
+### ⚙️ CI
+- Dependabot: blocked major version bumps (wgpu, egui, winit, glam) to prevent breaking CI
+- Auto-tag workflow: creates git tag automatically on `Cargo.toml` version bump → triggers release
+- WASM clippy: switched to `--lib` flag to avoid false-positive `main_recursion` error
+- `Makefile`: `make build` now auto-generates `dist/_headers` for Netlify deploy
+
+### 🎨 Style
+- `menu_bar.rs`: applied rustfmt formatting
+
+### 📝 Docs
+- Added `CHANGELOG.md`
+
+---
+
 ## [0.1.0] — 2026-11-13
 
 > 🚀 Initial public release of WGPU Engine Studio — a cross-platform 3D engine built with WebGPU, egui, and Rust targeting both native desktop and WebAssembly.
@@ -89,5 +110,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/rihadjahanopu/wasm-wgpu-egui/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/rihadjahanopu/wasm-wgpu-egui/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rihadjahanopu/wasm-wgpu-egui/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rihadjahanopu/wasm-wgpu-egui/releases/tag/v0.1.0
