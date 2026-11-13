@@ -8,10 +8,24 @@ updates:
       day: "monday"
       time: "03:00"
       timezone: "Etc/UTC"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "deps"
       include: "scope"
+    # Only allow patch & minor updates — block breaking major bumps
+    ignore:
+      - dependency-name: "wgpu"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "egui"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "egui-wgpu"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "egui-winit"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "winit"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "glam"
+        update-types: ["version-update:semver-major"]
 
   # Maintain GitHub Actions workflow dependencies
   - package-ecosystem: "github-actions"
