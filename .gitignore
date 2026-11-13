@@ -1,0 +1,27 @@
+# Rust Build Artifacts
+/target/
+**/*.rs.bk
+
+# Trunk Distribution Output
+/dist/
+.stage/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor Artifacts
+.idea/
+.vscode/*.json
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# Logs & Temporary Files
+*.log
+*.tmp
+.cache/
+wasm-opt-*/
