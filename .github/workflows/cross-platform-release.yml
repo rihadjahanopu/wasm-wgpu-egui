@@ -377,7 +377,8 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Install Trunk
-        run: cargo install trunk --locked
+        run: |
+          curl -sL https://github.com/trunk-rs/trunk/releases/download/v0.21.7/trunk-x86_64-unknown-linux-gnu.tar.gz | sudo tar -xz -C /usr/local/bin
 
       - name: Build Web Production Distribution (SIMD128 + wasm-opt)
         run: |
