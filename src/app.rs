@@ -235,8 +235,8 @@ impl ApplicationHandler<AppEvent> for StudioApp {
             .with_decorations(false);
 
         #[cfg(target_arch = "wasm32")]
-        let attributes = Window::default_attributes()
-            .with_title("⚡ WGPU Professional Engine Studio");
+        let attributes =
+            Window::default_attributes().with_title("⚡ WGPU Professional Engine Studio");
 
         #[cfg(target_arch = "wasm32")]
         let attributes = {
@@ -382,14 +382,15 @@ impl ApplicationHandler<AppEvent> for StudioApp {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let current_pos = [position.x as f32, position.y as f32];
-                if self.is_left_mouse_down && !wants_pointer {
-                    if let Some(last_pos) = self.last_cursor_pos {
-                        let dx = current_pos[0] - last_pos[0];
-                        let dy = current_pos[1] - last_pos[1];
-                        self.camera.rotate(dx, dy);
-                        if let Some(window) = &self.window {
-                            window.request_redraw();
-                        }
+                if self.is_left_mouse_down
+                    && !wants_pointer
+                    && let Some(last_pos) = self.last_cursor_pos
+                {
+                    let dx = current_pos[0] - last_pos[0];
+                    let dy = current_pos[1] - last_pos[1];
+                    self.camera.rotate(dx, dy);
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
                     }
                 }
                 self.last_cursor_pos = Some(current_pos);
