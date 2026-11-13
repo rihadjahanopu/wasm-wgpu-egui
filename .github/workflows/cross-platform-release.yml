@@ -227,7 +227,7 @@ jobs:
           fi
 
       - name: Upload Linux Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-${{ matrix.arch }}-artifacts
           path: |
@@ -309,7 +309,7 @@ jobs:
           zip -r wgpu-studio-macos-universal.zip "WGPU Studio.app"
 
       - name: Upload macOS Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-artifacts
           path: |
@@ -355,7 +355,7 @@ jobs:
           Compress-Archive -Path package/* -DestinationPath wgpu-studio-windows-${{ matrix.arch }}.zip
 
       - name: Upload Windows Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-${{ matrix.arch }}-artifacts
           path: wgpu-studio-windows-${{ matrix.arch }}.zip
@@ -385,7 +385,7 @@ jobs:
           zip -r wgpu-studio-web-wasm.zip dist/
 
       - name: Upload Web Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-wasm-artifacts
           path: wgpu-studio-web-wasm.zip
