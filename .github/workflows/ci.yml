@@ -1,0 +1,137 @@
+name: 🧪 Continuous Integration & Quality Gate
+
+on:
+  push:
+    branches: [main, master, release]
+  pull_request:
+    branches: [main, master, release]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Code Formatting & Style Gate (rustfmt)
+  # ---------------------------------------------------------------------------
+  formatting:
+    name: 🎨 Code Style (rustfmt)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+
+  # ---------------------------------------------------------------------------
+  # 2. Studio-Grade Static Analysis & Lints (clippy)
+  # ---------------------------------------------------------------------------
+  clippy:
+    name: 🧹 Strict Linter (clippy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchains
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxinerama-dev libwayland-dev libxkbcommon-dev libvulkan-dev
+
+      - name: Run Clippy on Native Target
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run Clippy on WASM Target
+        run: cargo clippy --target wasm32-unknown-unknown -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # 3. Cross-Platform Compilation & Test Matrix (Linux, Windows, macOS)
+  # ---------------------------------------------------------------------------
+  test-matrix:
+    name: 🖥️ Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux Dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxcursor-dev libxrandr-dev libxi-dev libxinerama-dev libwayland-dev libxkbcommon-dev libvulkan-dev
+
+      - name: Build & Compile Checks
+        run: cargo check --all-targets
+
+      - name: Execute Automated Unit & Integration Tests
+        run: cargo test --all-targets -- --nocapture
+
+  # ---------------------------------------------------------------------------
+  # 4. WebAssembly SIMD Compilation Gate
+  # ---------------------------------------------------------------------------
+  wasm-gate:
+    name: 🌐 WebAssembly (WASM + WebGPU SIMD)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify WASM Compilation
+        run: cargo check --target wasm32-unknown-unknown
+
+  # ---------------------------------------------------------------------------
+  # 5. Documentation & Intra-Doc Links Verification
+  # ---------------------------------------------------------------------------
+  docs:
+    name: 📚 Documentation Integrity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Rust Docs with Strict Link Checking
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items
