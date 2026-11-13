@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="author" content="Rihad Jahan Opu">
+    <title>⚡ WGPU Engine Studio | by Rihad Jahan Opu</title>
+
+    <script>
+        // WebGPU Spec Compatibility Polyfill:
+        // Recent Chrome / W3C WebGPU specification renamed 'maxInterStageShaderComponents'
+        // to 'maxInterStageShaderVariables'. Older wgpu versions send 'maxInterStageShaderComponents',
+        // which modern Chrome rejects with an OperationError.
+        if (typeof GPUAdapter !== 'undefined' && GPUAdapter.prototype && GPUAdapter.prototype.requestDevice) {
+            const originalRequestDevice = GPUAdapter.prototype.requestDevice;
+            GPUAdapter.prototype.requestDevice = function(desc) {
+                if (desc && desc.requiredLimits) {
+                    if ('maxInterStageShaderComponents' in desc.requiredLimits) {
+                        if (this.limits && 'maxInterStageShaderVariables' in this.limits) {
+                            desc.requiredLimits.maxInterStageShaderVariables = Math.min(
+                                Math.floor(desc.requiredLimits.maxInterStageShaderComponents / 4),
+                                this.limits.maxInterStageShaderVariables
+                            );
+                        }
+                        delete desc.requiredLimits.maxInterStageShaderComponents;
+                    }
+                    if (this.limits) {
+                        for (const key of Object.keys(desc.requiredLimits)) {
+                            if (!(key in this.limits)) {
+                                console.warn('[WebGPU Polyfill] Stripping unsupported limit key:', key);
+                                delete desc.requiredLimits[key];
+                            }
+                        }
+                    }
+                }
+                return originalRequestDevice.call(this, desc);
+            };
+        }
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0d1117;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        #wasm-canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            touch-action: none;
+            outline: none;
+        }
+
+        /* Sleek Studio Startup Loader */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #161b22 0%, #0d1117 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
+            color: #e6edf3;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(56, 139, 253, 0.2);
+            border-top: 3px solid #58a6ff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .title {
+            font-size: 1.15rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            color: #f0f6fc;
+        }
+
+        .subtitle {
+            font-size: 0.82rem;
+            color: #8b949e;
+            margin-bottom: 12px;
+        }
+
+        .author-tag {
+            font-size: 0.82rem;
+            color: #58a6ff;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .author-tag:hover {
+            text-decoration: underline;
+            color: #79c0ff;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #loader.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+    </style>
+
+    <link data-trunk rel="rust" data-bin="wasm-wgpu-egui" data-wasm-opt="z" />
+</head>
+<body>
+    <div id="loader">
+        <div class="spinner"></div>
+        <div class="title">⚡ WGPU Engine Studio</div>
+        <div class="subtitle">Compiling WebAssembly Shaders & Pipeline...</div>
+        <div>
+            <a class="author-tag" href="https://rihadjahanopu.com" target="_blank" rel="noopener">
+                👨‍💻 Developed by Rihad Jahan Opu • rihadjahanopu.com
+            </a>
+        </div>
+    </div>
+
+    <canvas id="wasm-canvas" tabindex="0"></canvas>
+
+    <script>
+        // Smoothly dismiss loader once WASM animation frames commence
+        window.addEventListener('load', () => {
+            const loader = document.getElementById('loader');
+            // Check when canvas starts receiving draw frames
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    if (loader) loader.classList.add('hidden');
+                }, 300);
+            });
+        });
+    </script>
+</body>
+</html>
