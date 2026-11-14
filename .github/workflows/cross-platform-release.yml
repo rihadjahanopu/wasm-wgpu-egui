@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: "0 2 * * *"
   push:
+    branches:
+      - main
+    paths:
+      - 'Cargo.toml'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -19,7 +23,7 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -27,10 +31,103 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # 0. Detect Version Bump & Handle Tagging
+  # ---------------------------------------------------------------------------
+  prepare-release:
+    name: 🏷️ Prepare & Tag Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag_name: ${{ steps.get_version.outputs.tag_name }}
+      version: ${{ steps.get_version.outputs.version }}
+      should_release: ${{ steps.get_version.outputs.should_release }}
+      release_notes: ${{ steps.changelog.outputs.notes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect Version Bump & Handle Tagging
+        id: get_version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "Nightly schedule dry run."
+            VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "(.*)"/\1/' | tr -d '[:space:]')
+            TAG_NAME="v${VERSION}"
+            SHOULD_RELEASE="true"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION="${TAG_NAME#v}"
+            SHOULD_RELEASE="true"
+            echo "Triggered by git tag push: $TAG_NAME"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.version }}" ]]; then
+            TAG_NAME="${{ inputs.version }}"
+            VERSION="${TAG_NAME#v}"
+            SHOULD_RELEASE="true"
+            echo "Manual workflow dispatch for version: $TAG_NAME"
+          else
+            # Parse version string from Cargo.toml safely
+            VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "(.*)"/\1/' | tr -d '[:space:]')
+            TAG_NAME="v${VERSION}"
+
+            echo "Cargo.toml version detected: $VERSION ($TAG_NAME)"
+
+            # Check if tag exists on origin
+            if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || git ls-remote --tags origin "$TAG_NAME" | grep -q "$TAG_NAME"; then
+              echo "Tag $TAG_NAME already exists on origin."
+              if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+                echo "Manual workflow dispatch: proceed with release for $TAG_NAME."
+                SHOULD_RELEASE="true"
+              else
+                echo "No version bump detected in Cargo.toml ($TAG_NAME already released). Skipping release build."
+                SHOULD_RELEASE="false"
+              fi
+            else
+              echo "✨ New version bump detected ($TAG_NAME)! Creating and pushing git tag..."
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+              git push origin "$TAG_NAME" || true
+              SHOULD_RELEASE="true"
+            fi
+          fi
+
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "should_release=${SHOULD_RELEASE}" >> $GITHUB_OUTPUT
+
+      - name: Extract Release Notes from CHANGELOG.md
+        id: changelog
+        if: steps.get_version.outputs.should_release == 'true'
+        shell: bash
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          CHANGELOG_FILE="CHANGELOG.md"
+          
+          NOTES=""
+          if [[ -f "$CHANGELOG_FILE" ]]; then
+            NOTES=$(sed -n "/## \[$VERSION\]/,/## \[/p" "$CHANGELOG_FILE" | sed '$d' | sed '1d')
+          fi
+
+          if [[ -z "$NOTES" ]]; then
+            NOTES="Automated cross-platform binary release for WGPU Studio **v${VERSION}**."
+          fi
+
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "notes<<$EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+  # ---------------------------------------------------------------------------
   # 1. Supply-Chain & Cargo Integrity Pre-Flight Check
   # ---------------------------------------------------------------------------
   security-check:
     name: 🛡️ Supply-Chain & Dependency Audit
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner Security
@@ -396,31 +493,24 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: 📢 Publish GitHub Release
-    needs: [linux-matrix, macos-universal, windows-matrix, web-wasm]
+    needs: [prepare-release, linux-matrix, macos-universal, windows-matrix, web-wasm]
     if: |
       github.event_name != 'schedule' &&
       !inputs.dry_run &&
-      (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.version != ''))
+      needs.prepare-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Determine Release Tag
-        id: release_tag
-        run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release_tag.outputs.tag }}
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          name: "⚡ WGPU Studio ${{ needs.prepare-release.outputs.tag_name }} | by Rihad Jahan Opu"
+          body: ${{ needs.prepare-release.outputs.release_notes }}
           files: |
             linux-*-artifacts/*.tar.gz
             linux-*-artifacts/*.deb
@@ -431,4 +521,3 @@ jobs:
             windows-*-artifacts/*.zip
             web-wasm-artifacts/*.zip
           generate_release_notes: true
-          name: "⚡ WGPU Studio ${{ steps.release_tag.outputs.tag }} | by Rihad Jahan Opu"
