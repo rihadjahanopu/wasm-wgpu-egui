@@ -165,70 +165,113 @@ pub fn render_menu_bar(
 
                 // ── RIGHT SIDE: Author + Platform + Window Controls ──────
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // ── DESKTOP ONLY: Custom Window Buttons (CSD) ────────
+                    // ── DESKTOP ONLY: Vector-Drawn Window Controls (CSD) ────────
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-                        // ✕ Close button — red on hover
-                        let close_btn = ui.add(
-                            egui::Button::new(egui::RichText::new("✕").size(12.0))
-                                .min_size(egui::vec2(28.0, 22.0))
-                                .frame(false),
-                        );
-                        if close_btn.hovered() {
+                        let button_size = egui::vec2(32.0, 22.0);
+                        let icon_color = egui::Color32::from_rgb(205, 210, 220);
+                        let hover_bg = egui::Color32::from_rgba_premultiplied(255, 255, 255, 22);
+
+                        // 1. Close Button [✕]
+                        let (close_rect, close_resp) =
+                            ui.allocate_exact_size(button_size, egui::Sense::click());
+                        let close_hovered = close_resp.hovered();
+                        let close_stroke_color = if close_hovered {
+                            egui::Color32::WHITE
+                        } else {
+                            icon_color
+                        };
+                        if close_hovered {
                             ui.painter().rect_filled(
-                                close_btn.rect,
+                                close_rect,
                                 egui::Rounding::same(3.0),
                                 egui::Color32::from_rgb(196, 43, 28),
                             );
-                            ui.painter().text(
-                                close_btn.rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                "✕",
-                                egui::FontId::proportional(12.0),
-                                egui::Color32::WHITE,
-                            );
                         }
-                        if close_btn.clicked() {
+                        let c = close_rect.center();
+                        let r = 4.0_f32;
+                        let close_stroke = egui::Stroke::new(1.0_f32, close_stroke_color);
+                        ui.painter().line_segment(
+                            [c + egui::vec2(-r, -r), c + egui::vec2(r, r)],
+                            close_stroke,
+                        );
+                        ui.painter().line_segment(
+                            [c + egui::vec2(-r, r), c + egui::vec2(r, -r)],
+                            close_stroke,
+                        );
+                        if close_resp.clicked() {
                             actions.request_close = true;
                         }
 
                         ui.add_space(2.0);
 
-                        // □ / 🗗 Maximize / Restore button
+                        // 2. Maximize / Restore Button [□]
                         let is_maximized = window.is_maximized();
-                        let max_icon = if is_maximized { "🗗" } else { "🗖" };
-                        let max_btn = ui.add(
-                            egui::Button::new(egui::RichText::new(max_icon).size(11.0))
-                                .min_size(egui::vec2(28.0, 22.0))
-                                .frame(false),
-                        );
-                        if max_btn.hovered() {
-                            ui.painter().rect_filled(
-                                max_btn.rect,
-                                egui::Rounding::same(3.0),
-                                egui::Color32::from_rgba_premultiplied(80, 80, 80, 180),
-                            );
+                        let (max_rect, max_resp) =
+                            ui.allocate_exact_size(button_size, egui::Sense::click());
+                        let max_hovered = max_resp.hovered();
+                        let max_stroke_color = if max_hovered {
+                            egui::Color32::WHITE
+                        } else {
+                            icon_color
+                        };
+                        if max_hovered {
+                            ui.painter()
+                                .rect_filled(max_rect, egui::Rounding::same(3.0), hover_bg);
                         }
-                        if max_btn.clicked() {
+                        let c = max_rect.center();
+                        let max_stroke = egui::Stroke::new(1.0_f32, max_stroke_color);
+                        if is_maximized {
+                            // Two overlapping rectangles (Restore icon)
+                            let back_rect = egui::Rect::from_min_size(
+                                c + egui::vec2(-2.0, -4.5),
+                                egui::vec2(7.0, 7.0),
+                            );
+                            ui.painter()
+                                .rect_stroke(back_rect, egui::Rounding::ZERO, max_stroke);
+                            let front_rect = egui::Rect::from_min_size(
+                                c + egui::vec2(-4.5, -2.0),
+                                egui::vec2(7.0, 7.0),
+                            );
+                            ui.painter().rect_filled(
+                                front_rect,
+                                egui::Rounding::ZERO,
+                                egui::Color32::from_rgb(22, 27, 34),
+                            );
+                            ui.painter()
+                                .rect_stroke(front_rect, egui::Rounding::ZERO, max_stroke);
+                        } else {
+                            // Single clean square outline (Maximize icon)
+                            let sq = egui::Rect::from_center_size(c, egui::vec2(9.0, 9.0));
+                            ui.painter()
+                                .rect_stroke(sq, egui::Rounding::ZERO, max_stroke);
+                        }
+                        if max_resp.clicked() {
                             actions.request_toggle_maximize = true;
                         }
 
                         ui.add_space(2.0);
 
-                        // — Minimize button
-                        let min_btn = ui.add(
-                            egui::Button::new(egui::RichText::new("—").size(12.0))
-                                .min_size(egui::vec2(28.0, 22.0))
-                                .frame(false),
-                        );
-                        if min_btn.hovered() {
-                            ui.painter().rect_filled(
-                                min_btn.rect,
-                                egui::Rounding::same(3.0),
-                                egui::Color32::from_rgba_premultiplied(80, 80, 80, 180),
-                            );
+                        // 3. Minimize Button [—]
+                        let (min_rect, min_resp) =
+                            ui.allocate_exact_size(button_size, egui::Sense::click());
+                        let min_hovered = min_resp.hovered();
+                        let min_stroke_color = if min_hovered {
+                            egui::Color32::WHITE
+                        } else {
+                            icon_color
+                        };
+                        if min_hovered {
+                            ui.painter()
+                                .rect_filled(min_rect, egui::Rounding::same(3.0), hover_bg);
                         }
-                        if min_btn.clicked() {
+                        let c = min_rect.center();
+                        let min_stroke = egui::Stroke::new(1.0_f32, min_stroke_color);
+                        ui.painter().line_segment(
+                            [c + egui::vec2(-4.5, 0.0), c + egui::vec2(4.5, 0.0)],
+                            min_stroke,
+                        );
+                        if min_resp.clicked() {
                             window.set_minimized(true);
                         }
 
@@ -237,9 +280,15 @@ pub fn render_menu_bar(
 
                     // Version badge + author link (shown on both desktop and WASM)
                     #[cfg(not(target_arch = "wasm32"))]
-                    ui.label(egui::RichText::new("v0.1.0 • Desktop").weak());
+                    ui.label(
+                        egui::RichText::new(concat!("v", env!("CARGO_PKG_VERSION"), " • Desktop"))
+                            .weak(),
+                    );
                     #[cfg(target_arch = "wasm32")]
-                    ui.label(egui::RichText::new("v0.1.0 • WASM").weak());
+                    ui.label(
+                        egui::RichText::new(concat!("v", env!("CARGO_PKG_VERSION"), " • WASM"))
+                            .weak(),
+                    );
 
                     ui.label(egui::RichText::new("•").weak());
 
