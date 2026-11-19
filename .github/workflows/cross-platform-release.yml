@@ -1,9 +1,6 @@
 name: 🚀 Cross-Platform Desktop & Web Matrix Release
 
 on:
-  # Nightly dry run: builds every platform (Linux, Windows, macOS, Web, ARM64) to catch breakage early
-  schedule:
-    - cron: "0 2 * * *"
   push:
     branches:
       - main
@@ -53,12 +50,7 @@ jobs:
         id: get_version
         shell: bash
         run: |
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo "Nightly schedule dry run."
-            VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "(.*)"/\1/' | tr -d '[:space:]')
-            TAG_NAME="v${VERSION}"
-            SHOULD_RELEASE="true"
-          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             TAG_NAME="${{ github.ref_name }}"
             VERSION="${TAG_NAME#v}"
             SHOULD_RELEASE="true"
@@ -165,7 +157,8 @@ jobs:
   # ---------------------------------------------------------------------------
   linux-matrix:
     name: Linux (${{ matrix.arch }})
-    needs: [security-check]
+    needs: [prepare-release, security-check]
+    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -340,7 +333,8 @@ jobs:
   # ---------------------------------------------------------------------------
   macos-universal:
     name: "macOS (Universal 2: Apple Silicon + Intel)"
-    needs: [security-check]
+    needs: [prepare-release, security-check]
+    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: macos-latest
     steps:
       - name: Checkout Repository
@@ -421,7 +415,8 @@ jobs:
   # ---------------------------------------------------------------------------
   windows-matrix:
     name: Windows (${{ matrix.arch }})
-    needs: [security-check]
+    needs: [prepare-release, security-check]
+    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -465,7 +460,8 @@ jobs:
   # ---------------------------------------------------------------------------
   web-wasm:
     name: Web (WASM + WebGPU)
-    needs: [security-check]
+    needs: [prepare-release, security-check]
+    if: needs.prepare-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
