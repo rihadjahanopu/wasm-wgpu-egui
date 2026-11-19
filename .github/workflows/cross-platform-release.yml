@@ -217,11 +217,12 @@ jobs:
 
       - name: Package Debian / Ubuntu (.deb)
         run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "(.*)"/\1/' | tr -d '[:space:]')
           mkdir -p deb-pkg/DEBIAN deb-pkg/usr/bin deb-pkg/usr/share/applications
           cp target/${{ matrix.target }}/release/wasm-wgpu-egui deb-pkg/usr/bin/wgpu-studio
-          cat << 'EOF' > deb-pkg/DEBIAN/control
+          cat << EOF > deb-pkg/DEBIAN/control
           Package: wgpu-studio
-          Version: 0.1.0
+          Version: ${VERSION}
           Section: graphics
           Priority: optional
           Architecture: ${{ matrix.deb_arch }}
@@ -240,16 +241,16 @@ jobs:
           Type=Application
           Categories=Graphics;3DGraphics;Development;
           EOF
-          dpkg-deb --build deb-pkg wgpu-studio_0.1.0_${{ matrix.deb_arch }}.deb
+          dpkg-deb --build deb-pkg wgpu-studio_${VERSION}_${{ matrix.deb_arch }}.deb
 
       - name: Package Fedora / RHEL (.rpm)
         if: matrix.arch == 'x86_64'
         run: |
-          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-          mkdir -p ~/rpmbuild/BUILD/wgpu-studio-0.1.0/usr/bin
-          mkdir -p ~/rpmbuild/BUILD/wgpu-studio-0.1.0/usr/share/applications
-          cp target/${{ matrix.target }}/release/wasm-wgpu-egui ~/rpmbuild/BUILD/wgpu-studio-0.1.0/usr/bin/wgpu-studio
-          cat << 'EOF' > ~/rpmbuild/BUILD/wgpu-studio-0.1.0/usr/share/applications/wgpu-studio.desktop
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "(.*)"/\1/' | tr -d '[:space:]')
+          RPM_STAGE="$PWD/rpm-staging"
+          mkdir -p "$RPM_STAGE/usr/bin" "$RPM_STAGE/usr/share/applications"
+          cp target/${{ matrix.target }}/release/wasm-wgpu-egui "$RPM_STAGE/usr/bin/wgpu-studio"
+          cat << 'EOF' > "$RPM_STAGE/usr/share/applications/wgpu-studio.desktop"
           [Desktop Entry]
           Name=WGPU Engine Studio
           Comment=Professional 3D WebGPU Engine Studio by Rihad Jahan Opu
@@ -259,9 +260,11 @@ jobs:
           Type=Application
           Categories=Graphics;3DGraphics;Development;
           EOF
-          cat << 'EOF' > ~/rpmbuild/SPECS/wgpu-studio.spec
+          
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          cat << EOF > ~/rpmbuild/SPECS/wgpu-studio.spec
           Name:           wgpu-studio
-          Version:        0.1.0
+          Version:        ${VERSION}
           Release:        1%{?dist}
           Summary:        Professional 3D WebGPU Engine Studio by Rihad Jahan Opu
           License:        MIT
@@ -274,15 +277,14 @@ jobs:
           %install
           mkdir -p %{buildroot}/usr/bin
           mkdir -p %{buildroot}/usr/share/applications
-          cp %{_builddir}/wgpu-studio-0.1.0/usr/bin/wgpu-studio %{buildroot}/usr/bin/
-          cp %{_builddir}/wgpu-studio-0.1.0/usr/share/applications/wgpu-studio.desktop %{buildroot}/usr/share/applications/
+          cp -a ${RPM_STAGE}/. %{buildroot}/
 
           %files
           /usr/bin/wgpu-studio
           /usr/share/applications/wgpu-studio.desktop
           EOF
           rpmbuild -bb ~/rpmbuild/SPECS/wgpu-studio.spec
-          cp ~/rpmbuild/RPMS/x86_64/*.rpm wgpu-studio-0.1.0-1.x86_64.rpm
+          cp ~/rpmbuild/RPMS/x86_64/*.rpm ./
 
       - name: Package Universal Linux (.AppImage, .zsync & .rsync)
         if: matrix.arch == 'x86_64'
@@ -329,8 +331,8 @@ jobs:
           name: linux-${{ matrix.arch }}-artifacts
           path: |
             wgpu-studio-linux-${{ matrix.arch }}.tar.gz
-            wgpu-studio_0.1.0_${{ matrix.deb_arch }}.deb
-            wgpu-studio-0.1.0-1.x86_64.rpm
+            wgpu-studio_*.deb
+            *.rpm
             wgpu-studio-x86_64.AppImage*
 
   # ---------------------------------------------------------------------------
@@ -368,11 +370,12 @@ jobs:
 
       - name: Assemble macOS .app Bundle
         run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "(.*)"/\1/' | tr -d '[:space:]')
           mkdir -p "WGPU Studio.app/Contents/MacOS"
           mkdir -p "WGPU Studio.app/Contents/Resources"
           cp universal_bin/wgpu-studio "WGPU Studio.app/Contents/MacOS/wgpu-studio"
           chmod +x "WGPU Studio.app/Contents/MacOS/wgpu-studio"
-          cat << 'EOF' > "WGPU Studio.app/Contents/Info.plist"
+          cat << EOF > "WGPU Studio.app/Contents/Info.plist"
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -388,7 +391,7 @@ jobs:
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleShortVersionString</key>
-              <string>0.1.0</string>
+              <string>${VERSION}</string>
               <key>LSMinimumSystemVersion</key>
               <string>11.0</string>
               <key>NSHighResolutionCapable</key>
