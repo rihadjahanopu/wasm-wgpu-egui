@@ -13,6 +13,10 @@ pub struct ShaderUniforms {
     pub light_dir: [f32; 3],
     pub ambient_strength: f32,
     pub color_tint: [f32; 4],
+    pub camera_pos: [f32; 3],
+    pub specular_strength: f32,
+    pub light_color: [f32; 3],
+    pub shininess: f32,
 }
 
 pub struct GpuMesh {
@@ -26,9 +30,16 @@ pub struct ScenePipeline {
     pub hex_mesh: GpuMesh,
     pub cube_mesh: GpuMesh,
     pub pyramid_mesh: GpuMesh,
+    pub sphere_mesh: GpuMesh,
+    pub torus_mesh: GpuMesh,
+    pub cylinder_mesh: GpuMesh,
+    pub plane_mesh: GpuMesh,
+    pub grid_mesh: GpuMesh,
     pub current_mesh: MeshType,
     pub uniform_buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
+    pub grid_uniform_buffer: wgpu::Buffer,
+    pub grid_bind_group: wgpu::BindGroup,
 }
 
 impl ScenePipeline {
@@ -48,6 +59,10 @@ impl ScenePipeline {
             light_dir: [0.5, -1.0, -0.6],
             ambient_strength: 0.35,
             color_tint: [1.0, 1.0, 1.0, 1.0],
+            camera_pos: [0.0, 0.0, 3.2],
+            specular_strength: 0.7,
+            light_color: [1.0, 1.0, 1.0],
+            shininess: 32.0,
         };
 
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -76,6 +91,21 @@ impl ScenePipeline {
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: uniform_buffer.as_entire_binding(),
+            }],
+        });
+
+        let grid_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Grid Uniform Buffer"),
+            contents: bytemuck::cast_slice(&[dummy_uniforms]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let grid_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Grid Uniform Bind Group"),
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: grid_uniform_buffer.as_entire_binding(),
             }],
         });
 
@@ -173,14 +203,96 @@ impl ScenePipeline {
             num_indices: pyramid_data.indices.len() as u32,
         };
 
+        let sphere_data = MeshData::uv_sphere();
+        let sphere_mesh = GpuMesh {
+            vertex_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Sphere Vertex Buffer"),
+                contents: bytemuck::cast_slice(&sphere_data.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+            index_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Sphere Index Buffer"),
+                contents: bytemuck::cast_slice(&sphere_data.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }),
+            num_indices: sphere_data.indices.len() as u32,
+        };
+
+        let torus_data = MeshData::torus();
+        let torus_mesh = GpuMesh {
+            vertex_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Torus Vertex Buffer"),
+                contents: bytemuck::cast_slice(&torus_data.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+            index_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Torus Index Buffer"),
+                contents: bytemuck::cast_slice(&torus_data.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }),
+            num_indices: torus_data.indices.len() as u32,
+        };
+
+        let cylinder_data = MeshData::cylinder();
+        let cylinder_mesh = GpuMesh {
+            vertex_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Cylinder Vertex Buffer"),
+                contents: bytemuck::cast_slice(&cylinder_data.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+            index_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Cylinder Index Buffer"),
+                contents: bytemuck::cast_slice(&cylinder_data.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }),
+            num_indices: cylinder_data.indices.len() as u32,
+        };
+
+        let plane_data = MeshData::subdivided_plane();
+        let plane_mesh = GpuMesh {
+            vertex_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Plane Vertex Buffer"),
+                contents: bytemuck::cast_slice(&plane_data.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+            index_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Plane Index Buffer"),
+                contents: bytemuck::cast_slice(&plane_data.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }),
+            num_indices: plane_data.indices.len() as u32,
+        };
+
+        let grid_data = MeshData::grid();
+        let grid_mesh = GpuMesh {
+            vertex_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Grid Vertex Buffer"),
+                contents: bytemuck::cast_slice(&grid_data.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+            index_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Grid Index Buffer"),
+                contents: bytemuck::cast_slice(&grid_data.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }),
+            num_indices: grid_data.indices.len() as u32,
+        };
+
         Self {
             pipeline,
             hex_mesh,
             cube_mesh,
             pyramid_mesh,
+            sphere_mesh,
+            torus_mesh,
+            cylinder_mesh,
+            plane_mesh,
+            grid_mesh,
             current_mesh: MeshType::HexagonPrism,
             uniform_buffer,
             bind_group,
+            grid_uniform_buffer,
+            grid_bind_group,
         }
     }
 
@@ -190,7 +302,16 @@ impl ScenePipeline {
             MeshType::HexagonPrism => &self.hex_mesh,
             MeshType::Cube => &self.cube_mesh,
             MeshType::Pyramid => &self.pyramid_mesh,
+            MeshType::Sphere => &self.sphere_mesh,
+            MeshType::Torus => &self.torus_mesh,
+            MeshType::Cylinder => &self.cylinder_mesh,
+            MeshType::Plane => &self.plane_mesh,
         }
+    }
+
+    #[inline(always)]
+    pub fn grid_mesh(&self) -> &GpuMesh {
+        &self.grid_mesh
     }
 
     #[inline(always)]
@@ -201,5 +322,14 @@ impl ScenePipeline {
     #[inline(always)]
     pub fn update_uniforms(&self, queue: &wgpu::Queue, uniforms: &ShaderUniforms) {
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[*uniforms]));
+    }
+
+    #[inline(always)]
+    pub fn update_grid_uniforms(&self, queue: &wgpu::Queue, uniforms: &ShaderUniforms) {
+        queue.write_buffer(
+            &self.grid_uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[*uniforms]),
+        );
     }
 }

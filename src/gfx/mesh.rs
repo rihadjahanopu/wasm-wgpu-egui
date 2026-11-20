@@ -290,4 +290,366 @@ impl MeshData {
 
         Self { vertices, indices }
     }
+
+    /// Generates a smooth UV Sphere with latitude and longitude rings.
+    pub fn uv_sphere() -> Self {
+        let radius = 0.75_f32;
+        let sectors = 28_usize;
+        let rings = 18_usize;
+
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        let r_inv = 1.0 / radius;
+        let pi = std::f32::consts::PI;
+
+        for r in 0..=rings {
+            let v = r as f32 / rings as f32;
+            let phi = v * pi;
+
+            for s in 0..=sectors {
+                let u = s as f32 / sectors as f32;
+                let theta = u * 2.0 * pi;
+
+                let x = radius * phi.sin() * theta.cos();
+                let y = radius * phi.cos();
+                let z = radius * phi.sin() * theta.sin();
+
+                let normal = [x * r_inv, y * r_inv, z * r_inv];
+
+                let color = [
+                    0.4 + 0.6 * ((y / radius) + 1.0) * 0.5,
+                    0.3 + 0.7 * (theta.sin() * 0.5 + 0.5),
+                    0.8 + 0.2 * (theta.cos() * 0.5 + 0.5),
+                ];
+
+                vertices.push(Vertex {
+                    position: [x, y, z],
+                    normal,
+                    color,
+                });
+            }
+        }
+
+        for r in 0..rings {
+            for s in 0..sectors {
+                let first = (r * (sectors + 1) + s) as u16;
+                let second = first + (sectors as u16) + 1;
+
+                indices.push(first);
+                indices.push(second);
+                indices.push(first + 1);
+
+                indices.push(second);
+                indices.push(second + 1);
+                indices.push(first + 1);
+            }
+        }
+
+        Self { vertices, indices }
+    }
+
+    /// Generates a smooth 3D Torus (Donut) mesh.
+    pub fn torus() -> Self {
+        let major_r = 0.65_f32;
+        let minor_r = 0.24_f32;
+        let radial_segs = 28_usize;
+        let tubular_segs = 18_usize;
+
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let pi = std::f32::consts::PI;
+
+        for i in 0..=radial_segs {
+            let u = i as f32 / radial_segs as f32 * 2.0 * pi;
+            for j in 0..=tubular_segs {
+                let v = j as f32 / tubular_segs as f32 * 2.0 * pi;
+
+                let x = (major_r + minor_r * v.cos()) * u.cos();
+                let y = minor_r * v.sin();
+                let z = (major_r + minor_r * v.cos()) * u.sin();
+
+                let center_x = major_r * u.cos();
+                let center_z = major_r * u.sin();
+                let norm = glam::Vec3::new(x - center_x, y, z - center_z)
+                    .normalize()
+                    .to_array();
+
+                let color = [1.0, 0.4 + 0.6 * v.sin().abs(), 0.3 + 0.7 * u.cos().abs()];
+
+                vertices.push(Vertex {
+                    position: [x, y, z],
+                    normal: norm,
+                    color,
+                });
+            }
+        }
+
+        for i in 0..radial_segs {
+            for j in 0..tubular_segs {
+                let first = (i * (tubular_segs + 1) + j) as u16;
+                let second = ((i + 1) * (tubular_segs + 1) + j) as u16;
+
+                indices.push(first);
+                indices.push(second);
+                indices.push(first + 1);
+
+                indices.push(second);
+                indices.push(second + 1);
+                indices.push(first + 1);
+            }
+        }
+
+        Self { vertices, indices }
+    }
+
+    /// Generates an Architectural Cylinder with smooth sides and flat caps.
+    pub fn cylinder() -> Self {
+        let radius = 0.55_f32;
+        let height = 1.0_f32;
+        let segments = 24_usize;
+
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let half_h = height * 0.5;
+        let pi = std::f32::consts::PI;
+
+        // Sides
+        for i in 0..segments {
+            let next = (i + 1) % segments;
+            let theta1 = i as f32 / segments as f32 * 2.0 * pi;
+            let theta2 = next as f32 / segments as f32 * 2.0 * pi;
+
+            let x1 = radius * theta1.cos();
+            let z1 = radius * theta1.sin();
+            let x2 = radius * theta2.cos();
+            let z2 = radius * theta2.sin();
+
+            let n1 = [theta1.cos(), 0.0, theta1.sin()];
+            let n2 = [theta2.cos(), 0.0, theta2.sin()];
+
+            let base = vertices.len() as u16;
+            let col1 = [0.15, 0.7, 0.95];
+            let col2 = [0.3, 0.9, 1.0];
+
+            vertices.push(Vertex {
+                position: [x1, -half_h, z1],
+                normal: n1,
+                color: col1,
+            });
+            vertices.push(Vertex {
+                position: [x1, half_h, z1],
+                normal: n1,
+                color: col2,
+            });
+            vertices.push(Vertex {
+                position: [x2, half_h, z2],
+                normal: n2,
+                color: col2,
+            });
+            vertices.push(Vertex {
+                position: [x2, -half_h, z2],
+                normal: n2,
+                color: col1,
+            });
+
+            indices.push(base);
+            indices.push(base + 1);
+            indices.push(base + 2);
+            indices.push(base);
+            indices.push(base + 2);
+            indices.push(base + 3);
+        }
+
+        // Top cap
+        let top_center = vertices.len() as u16;
+        vertices.push(Vertex {
+            position: [0.0, half_h, 0.0],
+            normal: [0.0, 1.0, 0.0],
+            color: [0.5, 0.95, 1.0],
+        });
+        for i in 0..segments {
+            let theta = i as f32 / segments as f32 * 2.0 * pi;
+            vertices.push(Vertex {
+                position: [radius * theta.cos(), half_h, radius * theta.sin()],
+                normal: [0.0, 1.0, 0.0],
+                color: [0.4, 0.85, 0.95],
+            });
+        }
+        for i in 0..segments {
+            let curr = top_center + 1 + i as u16;
+            let next = top_center + 1 + ((i + 1) % segments) as u16;
+            indices.push(top_center);
+            indices.push(curr);
+            indices.push(next);
+        }
+
+        // Bottom cap
+        let bot_center = vertices.len() as u16;
+        vertices.push(Vertex {
+            position: [0.0, -half_h, 0.0],
+            normal: [0.0, -1.0, 0.0],
+            color: [0.15, 0.5, 0.7],
+        });
+        for i in 0..segments {
+            let theta = i as f32 / segments as f32 * 2.0 * pi;
+            vertices.push(Vertex {
+                position: [radius * theta.cos(), -half_h, radius * theta.sin()],
+                normal: [0.0, -1.0, 0.0],
+                color: [0.15, 0.5, 0.7],
+            });
+        }
+        for i in 0..segments {
+            let curr = bot_center + 1 + i as u16;
+            let next = bot_center + 1 + ((i + 1) % segments) as u16;
+            indices.push(bot_center);
+            indices.push(next);
+            indices.push(curr);
+        }
+
+        Self { vertices, indices }
+    }
+
+    /// Generates a subdivided ground plane.
+    pub fn subdivided_plane() -> Self {
+        let size = 2.4_f32;
+        let subdivisions = 8_usize;
+
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let half_s = size * 0.5;
+        let step = size / subdivisions as f32;
+
+        for i in 0..=subdivisions {
+            let z = -half_s + i as f32 * step;
+            for j in 0..=subdivisions {
+                let x = -half_s + j as f32 * step;
+                let is_even = (i + j) % 2 == 0;
+                let color = if is_even {
+                    [0.4, 0.5, 0.7]
+                } else {
+                    [0.2, 0.3, 0.45]
+                };
+                vertices.push(Vertex {
+                    position: [x, 0.0, z],
+                    normal: [0.0, 1.0, 0.0],
+                    color,
+                });
+            }
+        }
+
+        for i in 0..subdivisions {
+            for j in 0..subdivisions {
+                let first = (i * (subdivisions + 1) + j) as u16;
+                let second = ((i + 1) * (subdivisions + 1) + j) as u16;
+
+                indices.push(first);
+                indices.push(first + 1);
+                indices.push(second);
+
+                indices.push(second);
+                indices.push(first + 1);
+                indices.push(second + 1);
+            }
+        }
+
+        Self { vertices, indices }
+    }
+
+    /// Generates a Blender-Style 3D Ground Grid Floor with colored axes.
+    pub fn grid() -> Self {
+        let size = 8.0_f32;
+        let divisions = 16_usize;
+        let y = -0.85_f32;
+
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let half = size * 0.5;
+        let step = size / divisions as f32;
+        let half_w = 0.007_f32; // width of thin quad line
+
+        let normal = [0.0, 1.0, 0.0];
+
+        // Draw grid lines along X
+        for i in 0..=divisions {
+            let z = -half + i as f32 * step;
+            let is_axis = z.abs() < step * 0.4;
+            let color = if is_axis {
+                [0.95, 0.25, 0.25] // X-axis Red
+            } else {
+                [0.22, 0.28, 0.38] // Subtle grid line
+            };
+
+            let base = vertices.len() as u16;
+            vertices.push(Vertex {
+                position: [-half, y, z - half_w],
+                normal,
+                color,
+            });
+            vertices.push(Vertex {
+                position: [half, y, z - half_w],
+                normal,
+                color,
+            });
+            vertices.push(Vertex {
+                position: [half, y, z + half_w],
+                normal,
+                color,
+            });
+            vertices.push(Vertex {
+                position: [-half, y, z + half_w],
+                normal,
+                color,
+            });
+
+            indices.push(base);
+            indices.push(base + 1);
+            indices.push(base + 2);
+            indices.push(base);
+            indices.push(base + 2);
+            indices.push(base + 3);
+        }
+
+        // Draw grid lines along Z
+        for i in 0..=divisions {
+            let x = -half + i as f32 * step;
+            let is_axis = x.abs() < step * 0.4;
+            let color = if is_axis {
+                [0.25, 0.55, 0.98] // Z-axis Blue
+            } else {
+                [0.22, 0.28, 0.38] // Subtle grid line
+            };
+
+            let base = vertices.len() as u16;
+            vertices.push(Vertex {
+                position: [x - half_w, y, -half],
+                normal,
+                color,
+            });
+            vertices.push(Vertex {
+                position: [x + half_w, y, -half],
+                normal,
+                color,
+            });
+            vertices.push(Vertex {
+                position: [x + half_w, y, half],
+                normal,
+                color,
+            });
+            vertices.push(Vertex {
+                position: [x - half_w, y, half],
+                normal,
+                color,
+            });
+
+            indices.push(base);
+            indices.push(base + 1);
+            indices.push(base + 2);
+            indices.push(base);
+            indices.push(base + 2);
+            indices.push(base + 3);
+        }
+
+        Self { vertices, indices }
+    }
 }

@@ -80,8 +80,27 @@ impl StudioApp {
             light_dir: self.state.environment.light_direction.to_array(),
             ambient_strength: self.state.material.ambient_strength,
             color_tint: self.state.material.color_tint,
+            camera_pos: self.camera.eye_position().to_array(),
+            specular_strength: self.state.material.specular_strength,
+            light_color: self.state.environment.light_color,
+            shininess: self.state.material.shininess,
         };
         pipeline.update_uniforms(&gpu.queue, &uniforms);
+
+        if self.state.environment.show_grid {
+            let grid_uniforms = ShaderUniforms {
+                view_proj: view_proj.to_cols_array(),
+                model: glam::Mat4::IDENTITY.to_cols_array(),
+                light_dir: self.state.environment.light_direction.to_array(),
+                ambient_strength: 0.85,
+                color_tint: [1.0, 1.0, 1.0, 1.0],
+                camera_pos: self.camera.eye_position().to_array(),
+                specular_strength: 0.0,
+                light_color: [1.0, 1.0, 1.0],
+                shininess: 1.0,
+            };
+            pipeline.update_grid_uniforms(&gpu.queue, &grid_uniforms);
+        }
 
         // 4. Run Immediate-Mode GUI Frame
         let (full_output, bar_actions) = ui.prepare_frame(
@@ -187,6 +206,15 @@ impl StudioApp {
             scene_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
             scene_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             scene_pass.draw_indexed(0..mesh.num_indices, 0, 0..1);
+
+            // Draw Blender-style 3D Grid Floor if enabled
+            if self.state.environment.show_grid {
+                let grid = pipeline.grid_mesh();
+                scene_pass.set_bind_group(0, &pipeline.grid_bind_group, &[]);
+                scene_pass.set_vertex_buffer(0, grid.vertex_buffer.slice(..));
+                scene_pass.set_index_buffer(grid.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                scene_pass.draw_indexed(0..grid.num_indices, 0, 0..1);
+            }
         }
 
         // PASS 2: Egui Immediate-Mode UI Pass (LoadOp::Load overlays cleanly on top)
@@ -404,6 +432,71 @@ impl ApplicationHandler<AppEvent> for StudioApp {
                     self.camera.zoom(scroll_amount);
                     if let Some(window) = &self.window {
                         window.request_redraw();
+                    }
+                }
+            }
+            WindowEvent::KeyboardInput {
+                event:
+                    winit::event::KeyEvent {
+                        state: ElementState::Pressed,
+                        logical_key,
+                        ..
+                    },
+                ..
+            } => {
+                let wants_keyboard = if let Some(ui) = &self.ui {
+                    ui.ctx.wants_keyboard_input()
+                } else {
+                    false
+                };
+
+                if !wants_keyboard {
+                    use winit::keyboard::{Key, NamedKey};
+                    match logical_key {
+                        Key::Named(NamedKey::Space) => {
+                            self.state.transform.auto_rotate = !self.state.transform.auto_rotate;
+                            if let Some(window) = &self.window {
+                                window.request_redraw();
+                            }
+                        }
+                        Key::Character(s) => match s.as_str() {
+                            "r" | "R" => {
+                                self.camera = OrbitCamera::default();
+                                if let Some(window) = &self.window {
+                                    window.request_redraw();
+                                }
+                            }
+                            "g" | "G" => {
+                                self.state.environment.show_grid =
+                                    !self.state.environment.show_grid;
+                                if let Some(window) = &self.window {
+                                    window.request_redraw();
+                                }
+                            }
+                            "1" => {
+                                self.camera.yaw = 0.0;
+                                self.camera.pitch = 0.0;
+                                if let Some(window) = &self.window {
+                                    window.request_redraw();
+                                }
+                            }
+                            "3" => {
+                                self.camera.yaw = std::f32::consts::FRAC_PI_2;
+                                self.camera.pitch = 0.0;
+                                if let Some(window) = &self.window {
+                                    window.request_redraw();
+                                }
+                            }
+                            "7" => {
+                                self.camera.yaw = 0.0;
+                                self.camera.pitch = 85.0_f32.to_radians();
+                                if let Some(window) = &self.window {
+                                    window.request_redraw();
+                                }
+                            }
+                            _ => {}
+                        },
+                        _ => {}
                     }
                 }
             }

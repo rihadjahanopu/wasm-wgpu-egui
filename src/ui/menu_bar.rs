@@ -63,10 +63,26 @@ pub fn render_menu_bar(
                         &mut state.ui_layout.show_stats_badge,
                         "Viewport HUD Overlay",
                     );
+                    ui.checkbox(&mut state.environment.show_grid, "3D Grid Floor [G]");
                     ui.separator();
-                    if ui.button("Center View on Mesh").clicked() {
-                        camera.target = glam::Vec3::ZERO;
-                        camera.distance = 3.2;
+                    ui.label(egui::RichText::new("Camera Presets").strong());
+                    if ui.button("Center / Reset [R]").clicked() {
+                        *camera = OrbitCamera::default();
+                        ui.close_menu();
+                    }
+                    if ui.button("Front View [1]").clicked() {
+                        camera.yaw = 0.0;
+                        camera.pitch = 0.0;
+                        ui.close_menu();
+                    }
+                    if ui.button("Right View [3]").clicked() {
+                        camera.yaw = std::f32::consts::FRAC_PI_2;
+                        camera.pitch = 0.0;
+                        ui.close_menu();
+                    }
+                    if ui.button("Top View [7]").clicked() {
+                        camera.yaw = 0.0;
+                        camera.pitch = 85.0_f32.to_radians();
                         ui.close_menu();
                     }
                 });
@@ -117,9 +133,15 @@ pub fn render_menu_bar(
 
                 ui.menu_button("Help", |ui| {
                     ui.label(egui::RichText::new("⚡ WGPU Professional Engine Studio").strong());
-                    ui.label("Navigation Controls:");
+                    ui.label("Keyboard & Mouse Shortcuts:");
+                    ui.label("• Space: Toggle Auto-Rotation");
+                    ui.label("• G: Toggle 3D Grid Floor");
+                    ui.label("• R: Reset Orbit Camera");
+                    ui.label("• 1: Snap Front View");
+                    ui.label("• 3: Snap Right View");
+                    ui.label("• 7: Snap Top View");
                     ui.label("• Left Click + Drag: Orbit Camera");
-                    ui.label("• Mouse Scroll: Zoom In / Out");
+                    ui.label("• Mouse Scroll: Smooth Zoom");
                     ui.separator();
                     ui.label(
                         egui::RichText::new("👨‍💻 Developed by: Rihad Jahan Opu")

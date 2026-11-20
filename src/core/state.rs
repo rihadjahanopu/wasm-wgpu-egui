@@ -6,16 +6,32 @@ pub enum MeshType {
     HexagonPrism,
     Cube,
     Pyramid,
+    Sphere,
+    Torus,
+    Cylinder,
+    Plane,
 }
 
 impl MeshType {
-    pub const ALL: [Self; 3] = [Self::HexagonPrism, Self::Cube, Self::Pyramid];
+    pub const ALL: [Self; 7] = [
+        Self::HexagonPrism,
+        Self::Cube,
+        Self::Pyramid,
+        Self::Sphere,
+        Self::Torus,
+        Self::Cylinder,
+        Self::Plane,
+    ];
 
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::HexagonPrism => "Hexagonal Prism",
             Self::Cube => "Smooth 3D Cube",
             Self::Pyramid => "Geometric Pyramid",
+            Self::Sphere => "High-Poly UV Sphere",
+            Self::Torus => "Geometric Torus (Donut)",
+            Self::Cylinder => "Smooth Cylinder",
+            Self::Plane => "Subdivided Plane",
         }
     }
 }
@@ -61,6 +77,8 @@ impl Transform {
 pub struct Material {
     pub color_tint: [f32; 4],
     pub ambient_strength: f32,
+    pub specular_strength: f32,
+    pub shininess: f32,
 }
 
 impl Default for Material {
@@ -68,6 +86,8 @@ impl Default for Material {
         Self {
             color_tint: [1.0, 1.0, 1.0, 1.0],
             ambient_strength: 0.35,
+            specular_strength: 0.7,
+            shininess: 32.0,
         }
     }
 }
@@ -75,6 +95,8 @@ impl Default for Material {
 pub struct Environment {
     pub clear_color: [f32; 4],
     pub light_direction: Vec3,
+    pub light_color: [f32; 3],
+    pub show_grid: bool,
 }
 
 impl Default for Environment {
@@ -82,6 +104,8 @@ impl Default for Environment {
         Self {
             clear_color: [0.06, 0.08, 0.12, 1.0],
             light_direction: Vec3::new(0.5, -1.0, -0.6).normalize(),
+            light_color: [1.0, 1.0, 1.0],
+            show_grid: true,
         }
     }
 }

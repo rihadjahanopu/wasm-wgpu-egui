@@ -18,6 +18,7 @@ pub fn render_hierarchy(ctx: &egui::Context, state: &mut AppState, camera: &mut 
             CollapsingHeader::new("🌐 World Environment")
                 .default_open(true)
                 .show(ui, |ui| {
+                    ui.checkbox(&mut state.environment.show_grid, "3D Grid Floor [G]");
                     ui.horizontal(|ui| {
                         ui.label("Clear:");
                         let mut rgb = [
@@ -33,7 +34,7 @@ pub fn render_hierarchy(ctx: &egui::Context, state: &mut AppState, camera: &mut 
                     });
                 });
 
-            CollapsingHeader::new("🎥 Orbit Camera")
+            CollapsingHeader::new("🎥 Camera Presets")
                 .default_open(true)
                 .show(ui, |ui| {
                     ui.label(format!("Distance: {:.2}m", camera.distance));
@@ -42,9 +43,23 @@ pub fn render_hierarchy(ctx: &egui::Context, state: &mut AppState, camera: &mut 
                         camera.yaw.to_degrees(),
                         camera.pitch.to_degrees()
                     ));
-                    if ui.small_button("Reset View").clicked() {
-                        *camera = OrbitCamera::default();
-                    }
+                    ui.horizontal_wrapped(|ui| {
+                        if ui.button("Front [1]").clicked() {
+                            camera.yaw = 0.0;
+                            camera.pitch = 0.0;
+                        }
+                        if ui.button("Right [3]").clicked() {
+                            camera.yaw = std::f32::consts::FRAC_PI_2;
+                            camera.pitch = 0.0;
+                        }
+                        if ui.button("Top [7]").clicked() {
+                            camera.yaw = 0.0;
+                            camera.pitch = 85.0_f32.to_radians();
+                        }
+                        if ui.button("Reset [R]").clicked() {
+                            *camera = OrbitCamera::default();
+                        }
+                    });
                 });
 
             CollapsingHeader::new(format!("🧊 Mesh: {}", state.mesh_type.display_name()))
