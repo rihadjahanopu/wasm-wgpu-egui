@@ -11,7 +11,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.3.0] — 2026-11-14
+## [0.4.0] — 2026-11-20
+
+### ✨ Added
+
+#### 🧊 New 3D Primitives
+- **UV Sphere** — High-poly parametric sphere with smooth normals and vertex colors
+- **Torus (Donut)** — 3D geometric torus with configurable major/minor radius
+- **Cylinder** — Architectural cylinder with capped ends and smooth side normals
+- **Subdivided Ground Plane** — Flat subdivided plane for ground/floor visualization
+
+#### 🟦 Blender-Style 3D Grid Floor
+- Stationary anti-aliased ground grid rendered with dedicated `grid_uniform_buffer` (identity matrix) so it stays fixed while the mesh rotates
+- Color-coded coordinate axes: X-axis in **red**, Z-axis in **blue**
+- Toggleable via UI checkbox or **`G`** keyboard shortcut
+
+#### 💡 Blinn-Phong Specular Shading
+- Full Blinn-Phong specular reflection model in WGSL (`scene.wgsl`)
+- `camera_pos`, `specular_strength`, `light_color`, and `shininess` added to `Uniforms`
+- World-space position passed from vertex to fragment shader (`world_pos`)
+- Material `specular_strength` and `shininess` sliders exposed in Inspector
+- Light color picker added to Environment section
+
+#### ⌨️ Keyboard Shortcuts & Camera Presets
+| Key | Action |
+|-----|--------|
+| `Space` | Toggle auto-rotation |
+| `G` | Toggle 3D grid floor |
+| `R` | Reset camera to default |
+| `1` | Snap to Front view |
+| `3` | Snap to Right view |
+| `7` | Snap to Top view |
+
+#### 🖥️ UI Enhancements
+- Inspector: radio buttons for all 7 primitives (Hexagonal Prism, Cube, Pyramid, Sphere, Torus, Cylinder, Plane)
+- Inspector: specular strength, shininess/glossiness sliders, light color picker
+- Hierarchy: Camera Preset quick-buttons (Front, Right, Top, Reset)
+- Hierarchy: 3D grid floor checkbox
+- Menu Bar: View menu camera presets, Help menu keyboard shortcut cheatsheet
+
+---
+
+## [0.3.0] — 2026-11-19
 
 ### 🚀 CI & DevOps
 - Migrated release automation to self-contained single-workflow architecture (inspired by gladeshell) with zero third-party token requirements.

@@ -21,13 +21,26 @@ A professional Blender/Godot-style 3D WebGPU Engine Studio running entirely in t
 - **⚡ Native WebGPU Rendering:** Pure modern graphics pipeline using `wgpu` and custom WGSL shaders with Blinn-Phong/Lambertian diffuse lighting and ambient tinting.
 - **🚀 WebAssembly SIMD128:** Accelerated 128-bit vector arithmetic with `glam` math for ultra-fast transform and camera calculations.
 - **🎨 100% GPU UI Rendering:** Docked studio interface rendered completely via VRAM font atlas and vertex quads using `egui` (zero DOM layout recalculation).
-- **🧊 Multi-Mesh Studio Primitives:** Pre-baked Hexagonal Prism, Cube, and Pyramid geometries with zero GPU runtime allocation on mesh switching.
-- **🎥 Interactive Orbit Camera:** Smooth spherical coordinate mouse orbit (Left-click drag) and wheel zoom.
+- **🧊 Multi-Mesh Studio Primitives:** Pre-baked Hexagonal Prism, Cube, Pyramid, UV Sphere, Torus, Cylinder, and Subdivided Plane with zero GPU runtime allocation on mesh switching.
+- **🟦 Blender-Style 3D Grid Floor:** Stationary anti-aliased ground grid with color-coded axes (X=red, Z=blue), toggleable via UI or `G` key.
+- **💡 Blinn-Phong Specular Shading:** Full specular highlight model in WGSL with material shininess, specular strength, and light color controls exposed in the Inspector.
+- **🎥 Interactive Orbit Camera:** Smooth spherical coordinate mouse orbit (Left-click drag) and wheel zoom with keyboard snap presets.
+- **⌨️ Keyboard Shortcuts:**
+
+  | Key | Action |
+  |-----|--------|
+  | `Space` | Toggle auto-rotation |
+  | `G` | Toggle 3D grid floor |
+  | `R` | Reset camera |
+  | `1` | Front view |
+  | `3` | Right view |
+  | `7` | Top view |
+
 - **🧠 Adaptive Frame Pacing:** Renders at full display refresh rate (60/120/144Hz) during animation and drops to 0.1% CPU in idle states to conserve battery.
 - **🛠️ Studio Layout:**
-  - **Top Menu Bar:** File, Geometry, Presets, Viewport controls, and developer branding.
-  - **Left Hierarchy Tree:** Scene graph inspector and object nodes.
-  - **Right Inspector:** Live transform controls, material tinting, lighting sliders, and GPU hardware device info.
+  - **Top Menu Bar:** File, Geometry, View (camera presets), and Help (shortcut cheatsheet).
+  - **Left Hierarchy Tree:** Scene graph with Camera Preset buttons and grid toggle.
+  - **Right Inspector:** Primitive selector, material tinting, specular/shininess sliders, light color picker, and GPU device info.
   - **Bottom Console:** Live FPS sparkline history and diagnostic log stream.
   - **Floating 3D In-World Tag:** View-projection matrix projected 3D floating tag above the active mesh.
 
@@ -48,7 +61,7 @@ src/
 │   ├── mod.rs
 │   ├── context.rs      # GpuContext: surface, device, queue, depth buffer
 │   ├── camera.rs       # OrbitCamera: view-projection matrix & spherical navigation
-│   ├── mesh.rs         # Mesh generator: Hexagonal Prism, Cube, Pyramid
+│   ├── mesh.rs         # Mesh generators: Prism, Cube, Pyramid, UV Sphere, Torus, Cylinder, Plane, Grid
 │   └── pipeline.rs     # Pre-baked GpuMesh buffers, RenderPipeline, WGSL uniforms
 ├── ui/
 │   ├── mod.rs          # UiManager orchestrator
